@@ -184,6 +184,7 @@ def write_ptuheader(inputfile, acquisition_time_ms=None, total_records=None):
 def combine_time_tags_header(headerfile, timetags, outputfile):
     """
     Add the proper header to the saved timetags file so that the output (outputfile) can be used to be analyzed later.
+    Ideally, you can name the outputfile in the .ptu file format.
     Tested on 
     device :PicoHarp 300  : 2 channels.
     timetag analysis software : readPTU library : https://github.com/QuantumPhotonicsLab/readPTU
