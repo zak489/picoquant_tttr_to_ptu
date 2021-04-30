@@ -33,27 +33,37 @@ rtMultiHarpNT3 = struct.unpack(">i", bytes.fromhex("00010307"))[0]
 rtMultiHarpNT2 = struct.unpack(">i", bytes.fromhex("00010207"))[0]
 
 
-def read_ptuheader(_inputfile, isprint=True):
+def read_ptuheader(_inputfile, isprint=True,npz_savedfile=None):
     """'
-    Read header from ptu file. It will work on a suitably formated binary file.
+    Read header from ptu file. It will work on a suitably formated binary file. Add option to output the headers to a .npz file compatible with the writing function.
     """
+    _ident = []
+    _tagIdx = []
+    _tagTyp = []
+    _val = []
+
     with open(_inputfile, "rb") as inputfile:
-        magic = inputfile.read(8).decode("utf-8").strip("\0")
-        version = inputfile.read(8).decode("utf-8").strip("\0")
+        magic = inputfile.read(8).decode("utf-8").strip('\0')
+        version = inputfile.read(8).decode("utf-8").strip('\0')
         while True:
-            tagIdent = inputfile.read(32).decode("utf-8").strip("\0")
+            tagIdent = inputfile.read(32).decode("utf-8").strip('\0')
             tagIdx = struct.unpack("<i", inputfile.read(4))[0]
             tagTyp = struct.unpack("<i", inputfile.read(4))[0]
+            _ident.append(tagIdent)
+            _tagIdx.append(tagIdx)
+            _tagTyp.append(tagTyp)
             if tagIdx > -1:
-                evalName = tagIdent + "(" + str(tagIdx) + ")"
+                evalName = tagIdent + '(' + str(tagIdx) + ')'
             else:
                 evalName = tagIdent
             if tagTyp == tyEmpty8:
                 inputfile.read(8)
+                _val.append(' ')
                 if isprint:
                     print((evalName, "<empty Tag>"))
             elif tagTyp == tyBool8:
                 tagInt = struct.unpack("<q", inputfile.read(8))[0]
+                _val.append(int(tagInt))
                 if tagInt == 0:
                     if isprint:
                         print((evalName, "False"))
@@ -62,46 +72,51 @@ def read_ptuheader(_inputfile, isprint=True):
                         print((evalName, "True"))
             elif tagTyp == tyInt8:
                 tagInt = struct.unpack("<q", inputfile.read(8))[0]
+                _val.append(int(tagInt))
                 if isprint:
                     print((evalName, tagInt))
             elif tagTyp == tyBitSet64:
                 tagInt = struct.unpack("<q", inputfile.read(8))[0]
+                _val.append(int(tagInt))
                 if isprint:
                     print((evalName, tagInt))
             elif tagTyp == tyColor8:
                 tagInt = struct.unpack("<q", inputfile.read(8))[0]
+                _val.append(int(tagInt))
                 if isprint:
                     print((evalName, tagInt))
             elif tagTyp == tyFloat8:
                 tagFloat = struct.unpack("<d", inputfile.read(8))[0]
+                _val.append(float(tagFloat))
                 if isprint:
                     print((evalName, tagFloat))
             elif tagTyp == tyFloat8Array:
                 tagInt = struct.unpack("<q", inputfile.read(8))[0]
+                _val.append(int(tagInt))
                 if isprint:
                     print((evalName, tagInt))
             elif tagTyp == tyTDateTime:
                 tagFloat = struct.unpack("<d", inputfile.read(8))[0]
+                _val.append(float(tagFloat))
                 tagTime = int((tagFloat - 25569) * 86400)
                 tagTime = time.gmtime(tagTime)
                 if isprint:
-                    print((evalName, "%s" % datetime.datetime(*tagTime[:6])))
+                    print((evalName, tagTime))
             elif tagTyp == tyAnsiString:
                 tagInt = struct.unpack("<q", inputfile.read(8))[0]
                 tagString = inputfile.read(tagInt).decode("utf-8").strip("\0")
+                _val.append(list([int(tagInt),tagString]))
                 if isprint:
                     print((evalName, tagString))
             elif tagTyp == tyWideString:
                 tagInt = struct.unpack("<q", inputfile.read(8))[0]
-                tagString = (
-                    inputfile.read(tagInt)
-                    .decode("utf-16le", errors="ignore")
-                    .strip("\0")
-                )
+                tagString = inputfile.read(tagInt).decode("utf-16le", errors="ignore").strip("\0")
+                _val.append(list([int(tagInt),tagString]))
                 if isprint:
                     print((evalName, tagString))
             elif tagTyp == tyBinaryBlob:
                 tagInt = struct.unpack("<q", inputfile.read(8))[0]
+                _val.append(int(tagInt))
                 if isprint:
                     print((evalName, tagInt))
             else:
@@ -109,9 +124,11 @@ def read_ptuheader(_inputfile, isprint=True):
                 exit(0)
             if tagIdent == "Header_End":
                 break
+    if npz_savedfile is not None:
+        np.savez(npz_savedfile,ident=_ident,tagIdx=_tagIdx,tagTyp=_tagTyp,tagValues=np.array(_val,dtype=object))
 
 
-def write_ptuheader(inputfile, acquisition_time_ms=None, total_records=None):
+def write_ptuheader(inputfile, acquisition_time_ms=None, total_records=None,header='picoharp_ptu_header_parameter.npz'):
     """
     Create a blank file : inputfile
     Write the ptuheader from the npz file, with the only major changes being 
@@ -120,7 +137,7 @@ def write_ptuheader(inputfile, acquisition_time_ms=None, total_records=None):
     inputfile containing the header.
     """
     timestamp_to_unix = lambda t: t / 86400 + 25569
-    data = np.load("ptu_header_parameter.npz", allow_pickle=True)
+    data = np.load(header, allow_pickle=True)
     _ident = data["ident"]
     _tagIdx = data["tagIdx"]
     _tagTyp = data["tagTyp"]
@@ -200,6 +217,8 @@ def combine_time_tags_header(headerfile, timetags, outputfile):
 
 
 if __name__ == "__main__":
-    write_ptuheader("header.bin", acquisition_time_ms=600000, total_records=6567632)
-    read_ptuheader(_inputfile="header.bin", isprint=True)
+    filename1 = r'hydraharp_ptu_header_parameter.npz'
+    filename2 = r'picoharp_ptu_header_parameter.npz'
+    write_ptuheader("test.bin",acqusition_time_ms=600000,total_records=6567632,header=filename1)
+    read_ptuheader(_inputfile="test.bin",isprint=True,npz_savedfile=None)
 
